@@ -134,6 +134,8 @@ HTML_TEMPLATE = """
         h1 { color: #4CAF50; font-size: 24px; border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
         label { display: block; margin-top: 15px; font-weight: bold; color: #ddd; }
         select, input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; font-size: 14px; box-sizing: border-box; }
+        .checkbox-label { display: flex; align-items: center; margin-top: 15px; font-weight: normal; color: #ffb300; cursor: pointer; background: #222; padding: 10px; border-radius: 5px; border: 1px dashed #ffb300; }
+        .checkbox-label input { width: 18px; height: 18px; margin-right: 10px; cursor: pointer; }
         .btn-start { margin-top: 25px; background-color: #4CAF50; color: white; border: none; padding: 15px 20px; font-size: 18px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; transition: 0.3s; box-sizing: border-box; }
         .btn-start:hover { background-color: #45a049; }
         .btn-start:disabled { background-color: #555; cursor: not-allowed; color: #888; }
@@ -264,11 +266,17 @@ HTML_TEMPLATE = """
                 {% for ac in acodecs %}<option value="{{ ac }}" {% if ac == 'copy' %}selected{% endif %}>{{ ac }}</option>{% endfor %}
             </select>
 
+            <!-- REPARATIE OPTIE TOEGEVOEGD -->
+            <label class="checkbox-label">
+                <input type="checkbox" name="repair_mode" value="yes"> 
+                🛠️ <strong>Repareer beschadigde bestanden / Negeer stream-fouten (Corrupte index/headers herstellen)</strong>
+            </label>
+
             <label>5. Jouw Discord Webhook (Optioneel, voor conversie-meldingen):</label>
             <input type="text" name="webhook_url" placeholder="https://discord.com/api/webhooks/..." value="{{ state.webhook_url }}">
             <div class="note">Je krijgt een berichtje zodra jouw eigen wachtrij is afgerond.</div>
 
-            <button type="submit" class="btn-start" id="submit_btn">🚀 Start Conversie</button>
+            <button type="submit" class="btn-start" id="submit_btn">🚀 Start Conversie & Herstel</button>
         </form>
     </div>
 
@@ -366,9 +374,9 @@ HTML_TEMPLATE = """
 
                     const btn = document.getElementById('submit_btn');
                     if (data.is_running) {
-                        btn.disabled = true; btn.innerText = "⏳ Conversie is bezig...";
+                        btn.disabled = true; btn.innerText = "⏳ Conversie & herstel bezig...";
                     } else {
-                        btn.disabled = false; btn.innerText = "🚀 Start Conversie";
+                        btn.disabled = false; btn.innerText = "🚀 Start Conversie & Herstel";
                     }
                 });
         }, 1000);
@@ -377,7 +385,7 @@ HTML_TEMPLATE = """
 </html>
 """
 
-def converter_job(folders, target_format, vcodec, acodec, webhook_url):
+def converter_job(folders, target_format, vcodec, acodec, webhook_url, repair_mode):
     STATE["is_running"] = True
     STATE["completed_files"] = []
     STATE["failed_files"] = []
@@ -426,10 +434,15 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url):
                     if os.path.exists(cache_path): continue
                         
                     processed_any = True
-                    STATE["status_text"] = f"Aan het converteren in: {os.path.basename(root)}"
+                    STATE["status_text"] = f"Aan het converteren/repareren in: {os.path.basename(root)}"
                     STATE["current_file"] = file
                     
-                    cmd = ['ffmpeg', '-y', '-i', source_path, '-f', target_format, '-c:v', vcodec, '-c:a', acodec, cache_path]
+                    # FFmpeg command met optionele reparatievlaggen
+                    cmd = ['ffmpeg', '-y']
+                    if repair_mode:
+                        cmd.extend(['-err_detect', 'ignore_err', '-fflags', '+genpts'])
+                    cmd.extend(['-i', source_path, '-f', target_format, '-c:v', vcodec, '-c:a', acodec, cache_path])
+                    
                     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     
                     if result.returncode == 0:
@@ -447,7 +460,7 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url):
                     
         if processed_any:
             STATE["status_text"] = f"Klaar! Alle geselecteerde mappen zijn verwerkt."
-            msg = f"✅ **Conversie Afronding!**\nAlle geselecteerde video's zijn verwerkt.\n**Gelukt:** {len(STATE['completed_files'])} video's\n**Mislukt:** {len(STATE['failed_files'])} video's"
+            msg = f"✅ **Conversie & Herstel Afronding!**\nAlle geselecteerde video's zijn verwerkt.\n**Gelukt:** {len(STATE['completed_files'])} video's\n**Mislukt:** {len(STATE['failed_files'])} video's"
             send_discord_notification(webhook_url, msg)
         else:
             STATE["status_text"] = f"Klaar! Geen (nieuwe) video's gevonden om te converteren."
@@ -477,9 +490,10 @@ def index():
             target_ext = request.form.get("target_ext")
             vcodec = request.form.get("vcodec")
             acodec = request.form.get("acodec")
+            repair_mode = True if request.form.get("repair_mode") == "yes" else False
             
             STATE["status_text"] = "Conversie wordt voorbereid..."
-            thread = threading.Thread(target=converter_job, args=(target_folders, target_ext, vcodec, acodec, webhook_url))
+            thread = threading.Thread(target=converter_job, args=(target_folders, target_ext, vcodec, acodec, webhook_url, repair_mode))
             thread.daemon = True
             thread.start()
         return redirect(url_for('index'))
@@ -490,7 +504,6 @@ def index():
 def status():
     return jsonify(STATE)
 
-# NIEUWE ROUTE VOOR DE SUPPORT KNOP
 @app.route('/api/support', methods=['POST'])
 def handle_support():
     data = request.json
