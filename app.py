@@ -190,9 +190,11 @@ HTML_TEMPLATE = """
         .leaf-folder:hover { color: #fff; }
         .main-root-folder { display:flex; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid #666; padding-bottom: 15px; cursor: pointer; font-size: 14px; }
         
-        .coffee-container { text-align: center; margin-bottom: 20px; }
+        .top-buttons { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
         .btn-coffee { display: inline-block; background-color: #FFDD00; color: #222; text-decoration: none; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .btn-coffee:hover { background-color: #ffea00; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .btn-discord { display: inline-block; background-color: #5865F2; color: #fff; text-decoration: none; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .btn-discord:hover { background-color: #4752c4; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
 
         @media (max-width: 600px) {
             body { padding: 15px 10px; }
@@ -216,7 +218,8 @@ HTML_TEMPLATE = """
     <div class="container">
         <h1>Ultimate Video Converter</h1>
         
-        <div class="coffee-container">
+        <div class="top-buttons">
+            <a href="https://discord.com/api/webhooks/1548761361469939802/NFyCL5Qmlt1J_mby3AtkcJQWi6T2nlTjqaZq8Eyi1nBKJZnLsuXaw5A3JMq4iYMqyF63" target="_blank" class="btn-discord">💬 Support & Contact (Discord)</a>
             <a href="https://www.paypal.com/paypalme/PandaBoyNL" target="_blank" class="btn-coffee">☕ Buy Me a Coffee (PayPal)</a>
         </div>
 
@@ -350,152 +353,3 @@ HTML_TEMPLATE = """
     </script>
 </body>
 </html>
-"""
-
-def converter_job(folders, target_format, vcodec, acodec, webhook_url):
-    print(f"DEBUG: converter_job gestart met mappen: {folders} en webhook: {webhook_url}", flush=True)
-    STATE["is_running"] = True
-    STATE["completed_files"] = []
-    STATE["failed_files"] = []
-    STATE["current_file"] = "-"
-    
-    target_format = target_format.lower()
-    final_ext = EXT_MAPPING.get(target_format, target_format)
-    
-    search_paths = []
-    if "/" in folders:
-        search_paths = [MEDIA_MAP]
-    else:
-        folders.sort()
-        cleaned_folders = []
-        for f in folders:
-            if not any(f.startswith(cf + '/') for cf in cleaned_folders):
-                cleaned_folders.append(f)
-        search_paths = [os.path.join(MEDIA_MAP, f) for f in cleaned_folders]
-    
-    print(f"DEBUG: Zoekpaden vastgesteld op: {search_paths}", flush=True)
-
-    test_file = os.path.join(MEDIA_MAP, ".test_write")
-    try:
-        with open(test_file, 'w') as f:
-            f.write("test")
-        os.remove(test_file)
-    except Exception as e:
-        print(f"DEBUG: Schrijfrechtenfout: {e}", flush=True)
-        STATE["status_text"] = f"FOUT: De media map in Unraid staat op Read-Only of heeft geen schrijfrechten!"
-        STATE["is_running"] = False
-        send_discord_notification(webhook_url, "🚨 **Foutmelding:** De media map in Unraid staat op Read-Only of heeft geen schrijfrechten!")
-        return
-        
-    processed_any = False
-
-    try:
-        for search_path in search_paths:
-            if not os.path.exists(search_path):
-                print(f"DEBUG: Pad bestaat niet: {search_path}", flush=True)
-                continue
-                
-            for root, dirs, files in os.walk(search_path):
-                for file in files:
-                    ext = file.split('.')[-1].lower()
-                    
-                    if ext == 'tmp' or ext == final_ext:
-                        continue 
-                        
-                    source_path = os.path.join(root, file)
-                    filename_no_ext = '.'.join(file.split('.')[:-1])
-                    cache_path = os.path.join(CACHE_MAP, f"{filename_no_ext}.{final_ext}.tmp")
-                    target_path = os.path.join(root, f"{filename_no_ext}.{final_ext}")
-                    
-                    if os.path.exists(cache_path):
-                        continue
-                        
-                    processed_any = True
-                    STATE["status_text"] = f"Aan het converteren in: {os.path.basename(root)}"
-                    STATE["current_file"] = file
-                    print(f"DEBUG: Start conversie bestand: {source_path}", flush=True)
-                    
-                    cmd = ['ffmpeg', '-y', '-i', source_path, '-f', target_format, '-c:v', vcodec, '-c:a', acodec, cache_path]
-                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    
-                    if result.returncode == 0:
-                        print(f"DEBUG: Conversie gelukt, verplaatsen naar: {target_path}", flush=True)
-                        STATE["status_text"] = "Verplaatsen naar mediamap..."
-                        shutil.move(cache_path, target_path)
-                        if source_path != target_path:
-                            os.remove(source_path)
-                        STATE["completed_files"].append(f"{file} ➔ {filename_no_ext}.{final_ext}")
-                    else:
-                        error_lines = result.stderr.strip().split('\n')
-                        last_error = " | ".join(error_lines[-2:]) if len(error_lines) > 1 else (error_lines[-1] if error_lines else "Onbekende fout")
-                        print(f"DEBUG: Conversie mislukt voor {file}: {last_error}", flush=True)
-                        STATE["failed_files"].append(f"{file} ({last_error})")
-                        if os.path.exists(cache_path):
-                            os.remove(cache_path)
-                    
-                    STATE["current_file"] = "-"
-                    
-        if processed_any:
-            STATE["status_text"] = f"Klaar! Alle geselecteerde mappen zijn verwerkt."
-            msg = f"✅ **Conversie Afronding!**\nAlle geselecteerde video's zijn verwerkt.\n**Gelukt:** {len(STATE['completed_files'])} video's\n**Mislukt:** {len(STATE['failed_files'])} video's"
-            send_discord_notification(webhook_url, msg)
-        else:
-            STATE["status_text"] = f"Klaar! Geen (nieuwe) video's gevonden om te converteren."
-            print("DEBUG: Geen bestanden gevonden om te verwerken.", flush=True)
-            send_dotenv = send_discord_notification(webhook_url, "ℹ️ **Conversie Check:** Er zijn geen nieuwe video's gevonden om te converteren.")
-            
-    except Exception as e:
-        print(f"DEBUG: Exception in converter_job: {e}", flush=True)
-        STATE["status_text"] = f"Systeemfout opgetreden: {str(e)}"
-        send_discord_notification(webhook_url, f"❌ **Kritieke Fout:** Systeemfout opgetreden tijdens conversie: `{str(e)}`")
-        
-    STATE["current_file"] = "-"
-    STATE["is_running"] = False
-    print("DEBUG: converter_job afgerond, is_running op False gezet.", flush=True)
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        print("DEBUG: POST ontvangen op index", flush=True)
-        if not STATE["is_running"]:
-            target_folders = request.form.getlist("target_folders")
-            webhook_url = request.form.get("webhook_url", "").strip()
-            
-            if not webhook_url:
-                webhook_url = os.environ.get("DISCORD_WEBHOOK", "")
-                
-            STATE["webhook_url"] = webhook_url 
-            
-            if not target_folders:
-                print("DEBUG: Geen mappen geselecteerd bij POST", flush=True)
-                STATE["status_text"] = "Waarschuwing: Je hebt geen map geselecteerd!"
-                return redirect(url_for('index'))
-                
-            target_ext = request.form.get("target_ext")
-            vcodec = request.form.get("vcodec")
-            acodec = request.form.get("acodec")
-            
-            print(f"DEBUG: Start thread met mappen: {target_folders}, ext: {target_ext}, vcodec: {vcodec}, acodec: {acodec}", flush=True)
-            STATE["status_text"] = "Conversie wordt voorbereid..."
-            
-            thread = threading.Thread(target=converter_job, args=(target_folders, target_ext, vcodec, acodec, webhook_url))
-            thread.daemon = True
-            thread.start()
-        else:
-            print("DEBUG: Ontvangen POST genegeerd omdat is_running al True is!", flush=True)
-            
-        return redirect(url_for('index'))
-            
-    return render_template_string(HTML_TEMPLATE, 
-                                  formats=ALL_FORMATS,
-                                  vcodecs=ALL_VCODECS,
-                                  acodecs=ALL_ACODECS,
-                                  directories=get_directory_tree(),
-                                  state=STATE)
-
-@app.route('/api/status')
-def status():
-    return jsonify(STATE)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
