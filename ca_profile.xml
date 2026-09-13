@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>
+    Welkom in de repository van PandaBoyNL! Hier vind je handige, snelle applicaties voor je Unraid server, waaronder de populaire Torrent Maker Pro. Voor hulp, het melden van bugs of het aanvragen van nieuwe functies kun je gebruik maken van de contact knop in de app
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/PandaBoyNL/torrent-maker-pro/main/icon.png</Icon>
+  <WebPage>https://github.com/PandaBoyNL/torrent-maker-pro</WebPage>
+  
+  <!-- Optionele support links (verwijder de !-- en -- om ze te activeren) -->
+  <!-- <Forum>https://forums.unraid.net/topic/JOUW_TOPIC_HIER</Forum> -->
+  <!-- <Discord>https://discord.gg/JOUW_INVITE_CODE</Discord> -->
+  
+  <DonateLink>https://paypal.me/PandaBoyNL</DonateLink>
+  <DonateText>☕ Buy me a coffee (Support de developer!)</DonateText>
+</CommunityApplications>
