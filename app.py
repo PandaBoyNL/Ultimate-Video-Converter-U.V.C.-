@@ -5,9 +5,9 @@ import shutil
 import time
 import json
 import urllib.request
+import logging
 from flask import Flask, request, render_template_string, jsonify, redirect, url_for
 
-import logging
 app = Flask(__name__)
 
 # --- STOP DE LOG-SPAM VAN DE STATUS ---
@@ -15,18 +15,47 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 # -------------------------------------
 
-# --- DYNAMISCHE FFMPEG PARSER ---
-def get_ffmpeg_formats():
+# --- DYNAMISCHE FFMPEG PARSER & FORMATEN ---
+def get_formatted_formats():
     try:
         result = subprocess.run(['ffmpeg', '-formats'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        formats = set()
+        raw_formats = set()
         for line in result.stdout.splitlines():
             if len(line) > 4 and line[2] == 'E':
                 for fmt in line[4:].split()[0].split(','):
-                    formats.add(fmt.strip())
-        return sorted(list(formats))
+                    raw_formats.add(fmt.strip())
     except:
-        return ["matroska", "mp4", "avi", "mov", "webm", "ts"]
+        raw_formats = {"matroska", "mp4", "avi", "mov", "webm", "ts"}
+
+    # Meest voorkomende formaten bovenaan
+    priority = ["matroska", "mp4", "avi", "mov", "webm", "mpegts"]
+    
+    # Vriendelijke pc-afkortingen / labels
+    display_names = {
+        "matroska": "MKV",
+        "mp4": "MP4",
+        "ipod": "MP4",
+        "avi": "AVI",
+        "mov": "MOV",
+        "webm": "WEBM",
+        "mpegts": "TS",
+        "asf": "WMV",
+        "flv": "FLV"
+    }
+
+    sorted_formats = []
+    for p in priority:
+        if p in raw_formats:
+            sorted_formats.append(p)
+            raw_formats.remove(p)
+    
+    sorted_formats.extend(sorted(list(raw_formats)))
+
+    result_list = []
+    for fmt in sorted_formats:
+        label = display_names.get(fmt, fmt.upper())
+        result_list.append((fmt, label))
+    return result_list
 
 def get_ffmpeg_codecs(type_char):
     try:
@@ -41,13 +70,13 @@ def get_ffmpeg_codecs(type_char):
     except:
         return ["copy", "libx264", "libx265", "aac", "ac3"]
 
-ALL_FORMATS = get_ffmpeg_formats()
+ALL_FORMATS = get_formatted_formats()
 ALL_VCODECS = get_ffmpeg_codecs('V')
 ALL_ACODECS = get_ffmpeg_codecs('A')
 
 EXT_MAPPING = {
     "matroska": "mkv",
-    "ipod": "m4v",
+    "ipod": "mp4",
     "mpegts": "ts",
     "asf": "wmv"
 }
@@ -89,13 +118,10 @@ def send_discord_notification(webhook_url, message):
         "username": "Ultimate Video Converter",
         "avatar_url": "https://cdn-icons-png.flaticon.com/512/4204/4204104.png"
     }
-    
-    # Hier voegen we de User-Agent toe zodat Discord de bot niet weigert
     headers = {
         'Content-Type': 'application/json',
         'User-Agent': 'UltimateVideoConverter/1.0'
     }
-    
     req = urllib.request.Request(webhook_url, data=json.dumps(data).encode('utf-8'), headers=headers)
     try:
         response = urllib.request.urlopen(req)
@@ -244,15 +270,15 @@ HTML_TEMPLATE = """
 
             <label>2. Kies het Doel Formaat (Extensie):</label>
             <select name="target_ext">
-                {% for f in formats %}
-                    <option value="{{ f }}" {% if f == 'matroska' %}selected{% endif %}>{{ f | upper }}</option>
+                {% for val, label in formats %}
+                    <option value="{{ val }}" {% if val == 'matroska' %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
 
             <label>3. Video Codec:</label>
             <select name="vcodec">
                 {% for vc in vcodecs %}
-                    <option value="{{ vc }}" {% if vc == 'libx265' %}selected{% endif %}>{{ vc }}</option>
+                    <option value="{{ vc }}" {% if vc == 'copy' %}selected{% endif %}>{{ vc }}</option>
                 {% endfor %}
             </select>
             
@@ -416,7 +442,7 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url):
         else:
             STATE["status_text"] = f"Klaar! Geen (nieuwe) video's gevonden om te converteren."
             print("DEBUG: Geen bestanden gevonden om te verwerken.", flush=True)
-            send_discord_notification(webhook_url, "ℹ️ **Conversie Check:** Er zijn geen nieuwe video's gevonden om te converteren.")
+            send_dotenv = send_discord_notification(webhook_url, "ℹ️ **Conversie Check:** Er zijn geen nieuwe video's gevonden om te converteren.")
             
     except Exception as e:
         print(f"DEBUG: Exception in converter_job: {e}", flush=True)
