@@ -27,35 +27,18 @@ def get_formatted_formats():
     except:
         raw_formats = {"matroska", "mp4", "avi", "mov", "webm", "ts"}
 
-    # Meest voorkomende formaten bovenaan
     priority = ["matroska", "mp4", "avi", "mov", "webm", "mpegts"]
     
-    # Vriendelijke pc-afkortingen / labels
     display_names = {
-        "matroska": "MKV",
-        "mp4": "MP4",
-        "ipod": "MP4",
-        "avi": "AVI",
-        "mov": "MOV",
-        "webm": "WEBM",
-        "mpegts": "TS",
-        "asf": "WMV",
-        "flv": "FLV"
+        "matroska": "MKV", "mp4": "MP4", "ipod": "MP4", "avi": "AVI",
+        "mov": "MOV", "webm": "WEBM", "mpegts": "TS", "asf": "WMV", "flv": "FLV"
     }
 
-    sorted_formats = []
-    for p in priority:
-        if p in raw_formats:
-            sorted_formats.append(p)
-            raw_formats.remove(p)
-    
+    sorted_formats = [p for p in priority if p in raw_formats]
+    raw_formats.difference_update(priority)
     sorted_formats.extend(sorted(list(raw_formats)))
 
-    result_list = []
-    for fmt in sorted_formats:
-        label = display_names.get(fmt, fmt.upper())
-        result_list.append((fmt, label))
-    return result_list
+    return [(fmt, display_names.get(fmt, fmt.upper())) for fmt in sorted_formats]
 
 def get_ffmpeg_codecs(type_char):
     try:
@@ -74,16 +57,13 @@ ALL_FORMATS = get_formatted_formats()
 ALL_VCODECS = get_ffmpeg_codecs('V')
 ALL_ACODECS = get_ffmpeg_codecs('A')
 
-EXT_MAPPING = {
-    "matroska": "mkv",
-    "ipod": "mp4",
-    "mpegts": "ts",
-    "asf": "wmv"
-}
+EXT_MAPPING = {"matroska": "mkv", "ipod": "mp4", "mpegts": "ts", "asf": "wmv"}
 
 MEDIA_MAP = "/media"
 CACHE_MAP = "/cache"
 
+# VUL HIER JOUW DISCORD WEBHOOK IN VOOR DE SUPPORT POP-UP KNOP
+SUPPORT_WEBHOOK = "https://discord.com/api/webhooks/1548761361469939802/NFyCL5Qmlt1J_mby3AtkcJQWi6T2nlTjqaZq8Eyi1nBKJZnLsuXaw5A3JMq4iYMqyF63"
 INITIAL_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 
 STATE = {
@@ -97,8 +77,7 @@ STATE = {
 
 def get_directory_tree(path=MEDIA_MAP):
     tree = {}
-    if not os.path.exists(path):
-        return tree
+    if not os.path.exists(path): return tree
     try:
         with os.scandir(path) as it:
             entries = sorted([entry for entry in it if entry.is_dir()], key=lambda e: e.name.lower())
@@ -109,23 +88,16 @@ def get_directory_tree(path=MEDIA_MAP):
     return tree
 
 def send_discord_notification(webhook_url, message):
-    print(f"DEBUG: Probeer Discord melding te sturen naar: {webhook_url}", flush=True)
-    if not webhook_url or not webhook_url.startswith("http"):
-        print("DEBUG: Geen geldige webhook URL opgegeven of URL start niet met http.", flush=True)
-        return
+    if not webhook_url or not webhook_url.startswith("http"): return
     data = {
         "content": message,
         "username": "Ultimate Video Converter",
-        "avatar_url": "https://cdn-icons-png.flaticon.com/512/4204/4204104.png"
+        "avatar_url": "https://raw.githubusercontent.com/PandaBoyNL/Ultimate-Video-Converter-U.V.C.-/main/logo.png"
     }
-    headers = {
-        'Content-Type': 'application/json',
-        'User-Agent': 'UltimateVideoConverter/1.0'
-    }
+    headers = {'Content-Type': 'application/json', 'User-Agent': 'UltimateVideoConverter/1.0'}
     req = urllib.request.Request(webhook_url, data=json.dumps(data).encode('utf-8'), headers=headers)
     try:
-        response = urllib.request.urlopen(req)
-        print(f"DEBUG: Discord melding succesvol verzonden! Status: {response.getcode()}", flush=True)
+        urllib.request.urlopen(req)
     except Exception as e:
         print(f"Fout bij sturen Discord notificatie: {e}", flush=True)
 
@@ -154,8 +126,7 @@ HTML_TEMPLATE = """
         .goog-te-banner-frame.skiptranslate { display: none !important; } 
         body { top: 0px !important; }
         #google_translate_element { display: none !important; }
-        .goog-tooltip { display: none !important; }
-        .goog-tooltip:hover { display: none !important; }
+        .goog-tooltip, .goog-tooltip:hover { display: none !important; }
         .goog-text-highlight { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
         body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #fff; margin: 0; padding: 40px 20px; }
@@ -186,47 +157,63 @@ HTML_TEMPLATE = """
         .folder-list summary { cursor: pointer; user-select: none; color: #ccc; font-weight: normal; font-size: 14px; word-break: break-word; }
         .folder-list summary:hover { color: #fff; }
         .folder-list input[type="checkbox"] { margin-right: 8px; cursor: pointer; flex-shrink: 0; }
-        .leaf-folder { display: flex; align-items: flex-start; margin-left: 20px; margin-top: 4px; margin-bottom: 4px; color: #ccc; cursor: pointer; font-weight: normal; font-size: 14px; word-break: break-word; }
+        .leaf-folder, .main-root-folder { display: flex; align-items: flex-start; margin-left: 20px; margin-top: 4px; margin-bottom: 4px; color: #ccc; cursor: pointer; font-weight: normal; font-size: 14px; word-break: break-word; }
         .leaf-folder:hover { color: #fff; }
-        .main-root-folder { display:flex; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid #666; padding-bottom: 15px; cursor: pointer; font-size: 14px; }
+        .main-root-folder { margin-left: 0; margin-bottom: 15px; border-bottom: 1px solid #666; padding-bottom: 15px; }
         
         .top-buttons { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .btn-coffee { display: inline-block; background-color: #FFDD00; color: #222; text-decoration: none; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .btn-coffee:hover { background-color: #ffea00; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
-        .btn-discord { display: inline-block; background-color: #5865F2; color: #fff; text-decoration: none; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .btn-discord:hover { background-color: #4752c4; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .btn-coffee, .btn-discord { display: inline-block; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); text-decoration: none; cursor: pointer; border: none; }
+        .btn-coffee { background-color: #FFDD00; color: #222; }
+        .btn-coffee:hover { background-color: #ffea00; transform: translateY(-2px); }
+        .btn-discord { background-color: #5865F2; color: #fff; }
+        .btn-discord:hover { background-color: #4752c4; transform: translateY(-2px); }
 
+        /* MODAL CSS */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); }
+        .modal-content { background-color: #2d2d2d; margin: 10% auto; padding: 25px; border: 1px solid #444; width: 90%; max-width: 500px; border-radius: 10px; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .close-btn { color: #aaa; position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: #fff; }
+        .modal-content h2 { margin-top: 0; color: #5865F2; font-size: 22px; }
+        .modal-content p { font-size: 14px; color: #ccc; margin-bottom: 15px; line-height: 1.4; }
+        #supportMessage { width: 100%; padding: 12px; border-radius: 5px; border: 1px solid #555; background: #111; color: white; margin-bottom: 15px; resize: vertical; box-sizing: border-box; font-family: Arial; }
+        
         @media (max-width: 600px) {
             body { padding: 15px 10px; }
             .container { padding: 20px; }
             .lists-container { flex-direction: column; }
             .list-box { height: 120px; }
             h1 { font-size: 20px; }
-            .btn-start { padding: 12px 15px; font-size: 16px; }
         }
     </style>
 </head>
 <body>
     <div id="google_translate_element"></div>
-    <script type="text/javascript">
-        function googleTranslateElementInit() {
-            new google.translate.TranslateElement({pageLanguage: 'nl', autoDisplay: false}, 'google_translate_element');
-        }
-    </script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script>function googleTranslateElementInit() { new google.translate.TranslateElement({pageLanguage: 'nl', autoDisplay: false}, 'google_translate_element'); }</script>
+
+    <!-- Support Modal -->
+    <div id="supportModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeSupportModal()">&times;</span>
+            <h2>💬 Support & Feedback</h2>
+            <p>Heb je een vraag, een bug gevonden of een verzoek voor een nieuwe functie? Stuur direct een bericht naar de ontwikkelaar (PandaBoyNL)!</p>
+            <textarea id="supportMessage" rows="5" placeholder="Typ hier je bericht of vraag..."></textarea>
+            <button class="btn-start" style="margin-top: 0; background-color: #5865F2;" onclick="sendSupportMessage()" id="btnSendSupport">Verstuur Bericht</button>
+            <div id="supportStatus" style="margin-top: 15px; font-size: 14px; font-weight: bold; text-align: center;"></div>
+        </div>
+    </div>
 
     <div class="container">
         <h1>Ultimate Video Converter</h1>
         
         <div class="top-buttons">
-            <a href="https://discord.com/api/webhooks/1548761361469939802/NFyCL5Qmlt1J_mby3AtkcJQWi6T2nlTjqaZq8Eyi1nBKJZnLsuXaw5A3JMq4iYMqyF63" target="_blank" class="btn-discord">💬 Support & Contact (Discord)</a>
+            <button onclick="openSupportModal()" class="btn-discord">💬 Support & Contact</button>
             <a href="https://www.paypal.com/paypalme/PandaBoyNL" target="_blank" class="btn-coffee">☕ Buy Me a Coffee (PayPal)</a>
         </div>
 
         <div class="status-box" id="status_box">
             <div class="status-title">Huidige Status</div>
             <div id="status_text">{{ state.status_text }}</div>
-            
             <div class="status-title">▶ Nu bezig met:</div>
             <div id="current_file" class="current-item">-</div>
 
@@ -243,7 +230,7 @@ HTML_TEMPLATE = """
         </div>
 
         <form method="POST" id="convertForm">
-            <label>1. Kies de mappen (klik op een mapnaam om uit te klappen):</label>
+            <label>1. Kies de mappen:</label>
             <div class="folder-list">
                 <label class="main-root-folder">
                     <input type="checkbox" name="target_folders" value="/"> 
@@ -253,18 +240,9 @@ HTML_TEMPLATE = """
                     {% for name, sub_tree in tree.items() %}
                         {% set new_path = current_path + '/' + name if current_path else name %}
                         {% if sub_tree %}
-                            <details>
-                                <summary>
-                                    <input type="checkbox" name="target_folders" value="{{ new_path }}" onclick="event.stopPropagation()">
-                                    📁 {{ name }}
-                                </summary>
-                                {{ render_tree(sub_tree, new_path) }}
-                            </details>
+                            <details><summary><input type="checkbox" name="target_folders" value="{{ new_path }}" onclick="event.stopPropagation()"> 📁 {{ name }}</summary>{{ render_tree(sub_tree, new_path) }}</details>
                         {% else %}
-                            <label class="leaf-folder">
-                                <input type="checkbox" name="target_folders" value="{{ new_path }}">
-                                📂 {{ name }}
-                            </label>
+                            <label class="leaf-folder"><input type="checkbox" name="target_folders" value="{{ new_path }}"> 📂 {{ name }}</label>
                         {% endif %}
                     {% endfor %}
                 {% endmacro %}
@@ -273,34 +251,86 @@ HTML_TEMPLATE = """
 
             <label>2. Kies het Doel Formaat (Extensie):</label>
             <select name="target_ext">
-                {% for val, label in formats %}
-                    <option value="{{ val }}" {% if val == 'matroska' %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
+                {% for val, label in formats %}<option value="{{ val }}" {% if val == 'matroska' %}selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
 
             <label>3. Video Codec:</label>
             <select name="vcodec">
-                {% for vc in vcodecs %}
-                    <option value="{{ vc }}" {% if vc == 'copy' %}selected{% endif %}>{{ vc }}</option>
-                {% endfor %}
+                {% for vc in vcodecs %}<option value="{{ vc }}" {% if vc == 'copy' %}selected{% endif %}>{{ vc }}</option>{% endfor %}
             </select>
             
             <label>4. Audio Codec:</label>
             <select name="acodec">
-                {% for ac in acodecs %}
-                    <option value="{{ ac }}" {% if ac == 'copy' %}selected{% endif %}>{{ ac }}</option>
-                {% endfor %}
+                {% for ac in acodecs %}<option value="{{ ac }}" {% if ac == 'copy' %}selected{% endif %}>{{ ac }}</option>{% endfor %}
             </select>
 
-            <label>5. Discord Notificaties (Optioneel):</label>
+            <label>5. Jouw Discord Webhook (Optioneel, voor conversie-meldingen):</label>
             <input type="text" name="webhook_url" placeholder="https://discord.com/api/webhooks/..." value="{{ state.webhook_url }}">
-            <div class="note">Je krijgt een berichtje zodra de complete wachtrij is afgerond. Je mag het venster veilig sluiten.</div>
+            <div class="note">Je krijgt een berichtje zodra jouw eigen wachtrij is afgerond.</div>
 
             <button type="submit" class="btn-start" id="submit_btn">🚀 Start Conversie</button>
         </form>
     </div>
 
     <script>
+        // Modal Functies
+        function openSupportModal() {
+            document.getElementById('supportModal').style.display = 'block';
+            document.getElementById('supportStatus').innerText = '';
+            document.getElementById('supportMessage').value = '';
+        }
+
+        function closeSupportModal() {
+            document.getElementById('supportModal').style.display = 'none';
+        }
+
+        function sendSupportMessage() {
+            const msg = document.getElementById('supportMessage').value;
+            const status = document.getElementById('supportStatus');
+            const btn = document.getElementById('btnSendSupport');
+            
+            if(!msg.trim()) {
+                status.innerText = '❌ Typ eerst een bericht voordat je verzendt.';
+                status.style.color = '#ff5252';
+                return;
+            }
+            
+            btn.disabled = true;
+            status.innerText = '⏳ Bezig met versturen...';
+            status.style.color = '#ffb300';
+            
+            fetch('/api/support', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    status.innerText = '✅ Bericht succesvol verstuurd!';
+                    status.style.color = '#4CAF50';
+                    setTimeout(closeSupportModal, 2500);
+                } else {
+                    status.innerText = '❌ Fout: ' + (data.error || 'Onbekende fout');
+                    status.style.color = '#ff5252';
+                }
+            })
+            .catch(err => {
+                status.innerText = '❌ Netwerkfout. Probeer het later opnieuw.';
+                status.style.color = '#ff5252';
+            })
+            .finally(() => {
+                btn.disabled = false;
+            });
+        }
+
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('supportModal')) {
+                closeSupportModal();
+            }
+        }
+
+        // Conversie Status Update
         setInterval(() => {
             fetch('/api/status')
                 .then(response => response.json())
@@ -325,31 +355,157 @@ HTML_TEMPLATE = """
                     const compList = document.getElementById('completed_list');
                     compList.innerHTML = "";
                     data.completed_files.forEach(file => {
-                        let li = document.createElement('li');
-                        li.className = "success-item";
-                        li.innerText = file;
-                        compList.appendChild(li);
+                        let li = document.createElement('li'); li.className = "success-item"; li.innerText = file; compList.appendChild(li);
                     });
 
                     const failList = document.getElementById('failed_list');
                     failList.innerHTML = "";
                     data.failed_files.forEach(file => {
-                        let li = document.createElement('li');
-                        li.className = "error-item";
-                        li.innerText = file;
-                        failList.appendChild(li);
+                        let li = document.createElement('li'); li.className = "error-item"; li.innerText = file; failList.appendChild(li);
                     });
 
                     const btn = document.getElementById('submit_btn');
                     if (data.is_running) {
-                        btn.disabled = true;
-                        btn.innerText = "⏳ Conversie is bezig...";
+                        btn.disabled = true; btn.innerText = "⏳ Conversie is bezig...";
                     } else {
-                        btn.disabled = false;
-                        btn.innerText = "🚀 Start Conversie";
+                        btn.disabled = false; btn.innerText = "🚀 Start Conversie";
                     }
                 });
         }, 1000);
     </script>
 </body>
 </html>
+"""
+
+def converter_job(folders, target_format, vcodec, acodec, webhook_url):
+    STATE["is_running"] = True
+    STATE["completed_files"] = []
+    STATE["failed_files"] = []
+    STATE["current_file"] = "-"
+    
+    target_format = target_format.lower()
+    final_ext = EXT_MAPPING.get(target_format, target_format)
+    
+    search_paths = []
+    if "/" in folders:
+        search_paths = [MEDIA_MAP]
+    else:
+        folders.sort()
+        cleaned_folders = []
+        for f in folders:
+            if not any(f.startswith(cf + '/') for cf in cleaned_folders):
+                cleaned_folders.append(f)
+        search_paths = [os.path.join(MEDIA_MAP, f) for f in cleaned_folders]
+    
+    test_file = os.path.join(MEDIA_MAP, ".test_write")
+    try:
+        with open(test_file, 'w') as f: f.write("test")
+        os.remove(test_file)
+    except Exception:
+        STATE["status_text"] = f"FOUT: De media map in Unraid staat op Read-Only of heeft geen schrijfrechten!"
+        STATE["is_running"] = False
+        send_discord_notification(webhook_url, "🚨 **Foutmelding:** De media map in Unraid staat op Read-Only of heeft geen schrijfrechten!")
+        return
+        
+    processed_any = False
+
+    try:
+        for search_path in search_paths:
+            if not os.path.exists(search_path): continue
+                
+            for root, dirs, files in os.walk(search_path):
+                for file in files:
+                    ext = file.split('.')[-1].lower()
+                    if ext == 'tmp' or ext == final_ext: continue 
+                        
+                    source_path = os.path.join(root, file)
+                    filename_no_ext = '.'.join(file.split('.')[:-1])
+                    cache_path = os.path.join(CACHE_MAP, f"{filename_no_ext}.{final_ext}.tmp")
+                    target_path = os.path.join(root, f"{filename_no_ext}.{final_ext}")
+                    
+                    if os.path.exists(cache_path): continue
+                        
+                    processed_any = True
+                    STATE["status_text"] = f"Aan het converteren in: {os.path.basename(root)}"
+                    STATE["current_file"] = file
+                    
+                    cmd = ['ffmpeg', '-y', '-i', source_path, '-f', target_format, '-c:v', vcodec, '-c:a', acodec, cache_path]
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    
+                    if result.returncode == 0:
+                        STATE["status_text"] = "Verplaatsen naar mediamap..."
+                        shutil.move(cache_path, target_path)
+                        if source_path != target_path: os.remove(source_path)
+                        STATE["completed_files"].append(f"{file} ➔ {filename_no_ext}.{final_ext}")
+                    else:
+                        error_lines = result.stderr.strip().split('\n')
+                        last_error = " | ".join(error_lines[-2:]) if len(error_lines) > 1 else (error_lines[-1] if error_lines else "Onbekende fout")
+                        STATE["failed_files"].append(f"{file} ({last_error})")
+                        if os.path.exists(cache_path): os.remove(cache_path)
+                    
+                    STATE["current_file"] = "-"
+                    
+        if processed_any:
+            STATE["status_text"] = f"Klaar! Alle geselecteerde mappen zijn verwerkt."
+            msg = f"✅ **Conversie Afronding!**\nAlle geselecteerde video's zijn verwerkt.\n**Gelukt:** {len(STATE['completed_files'])} video's\n**Mislukt:** {len(STATE['failed_files'])} video's"
+            send_discord_notification(webhook_url, msg)
+        else:
+            STATE["status_text"] = f"Klaar! Geen (nieuwe) video's gevonden om te converteren."
+            send_discord_notification(webhook_url, "ℹ️ **Conversie Check:** Er zijn geen nieuwe video's gevonden om te converteren.")
+            
+    except Exception as e:
+        STATE["status_text"] = f"Systeemfout opgetreden: {str(e)}"
+        send_discord_notification(webhook_url, f"❌ **Kritieke Fout:** Systeemfout opgetreden tijdens conversie: `{str(e)}`")
+        
+    STATE["current_file"] = "-"
+    STATE["is_running"] = False
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        if not STATE["is_running"]:
+            target_folders = request.form.getlist("target_folders")
+            webhook_url = request.form.get("webhook_url", "").strip()
+            
+            if not webhook_url: webhook_url = os.environ.get("DISCORD_WEBHOOK", "")
+            STATE["webhook_url"] = webhook_url 
+            
+            if not target_folders:
+                STATE["status_text"] = "Waarschuwing: Je hebt geen map geselecteerd!"
+                return redirect(url_for('index'))
+                
+            target_ext = request.form.get("target_ext")
+            vcodec = request.form.get("vcodec")
+            acodec = request.form.get("acodec")
+            
+            STATE["status_text"] = "Conversie wordt voorbereid..."
+            thread = threading.Thread(target=converter_job, args=(target_folders, target_ext, vcodec, acodec, webhook_url))
+            thread.daemon = True
+            thread.start()
+        return redirect(url_for('index'))
+            
+    return render_template_string(HTML_TEMPLATE, formats=ALL_FORMATS, vcodecs=ALL_VCODECS, acodecs=ALL_ACODECS, directories=get_directory_tree(), state=STATE)
+
+@app.route('/api/status')
+def status():
+    return jsonify(STATE)
+
+# NIEUWE ROUTE VOOR DE SUPPORT KNOP
+@app.route('/api/support', methods=['POST'])
+def handle_support():
+    data = request.json
+    message = data.get('message', '').strip()
+    
+    if not message:
+        return jsonify({"success": False, "error": "Bericht is leeg"}), 400
+        
+    if not SUPPORT_WEBHOOK or not SUPPORT_WEBHOOK.startswith("http"):
+        return jsonify({"success": False, "error": "Ontwikkelaar heeft geen correcte webhook ingesteld"}), 500
+        
+    formatted_message = f"📩 **Nieuw Support Bericht via U.V.C. App:**\n```\n{message}\n```"
+    send_discord_notification(SUPPORT_WEBHOOK, formatted_message)
+    
+    return jsonify({"success": True})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
