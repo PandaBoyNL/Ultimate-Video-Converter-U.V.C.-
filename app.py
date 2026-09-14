@@ -111,23 +111,46 @@ HTML_TEMPLATE = """
     
     <script>
         (function() {
-            var userLang = (navigator.language || navigator.userLanguage).split('-')[0];
-            if (userLang !== 'nl') {
-                var cookieName = 'googtrans';
-                var cookieValue = '/nl/' + userLang;
-                if (document.cookie.indexOf(cookieName + '=' + cookieValue) === -1) {
-                    document.cookie = cookieName + '=' + cookieValue + '; path=/';
+            if (document.cookie.indexOf('googtrans') === -1) {
+                let userLang = navigator.language || navigator.userLanguage;
+                let shortLang = userLang.split('-')[0].toLowerCase();
+                if (userLang.toLowerCase() === 'zh-cn' || userLang.toLowerCase() === 'zh-tw') shortLang = 'zh-CN';
+                const ondersteundeTalen = ['en', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'ru', 'tr', 'ar', 'zh-CN', 'ja', 'ko', 'hi'];
+                if (ondersteundeTalen.includes(shortLang) && shortLang !== 'nl') {
+                    document.cookie = 'googtrans=/nl/' + shortLang + '; path=/';
                 }
             }
         })();
     </script>
 
     <style>
-        .goog-te-banner-frame.skiptranslate { display: none !important; } 
-        body { top: 0px !important; }
-        #google_translate_element { display: none !important; }
-        .goog-tooltip, .goog-tooltip:hover { display: none !important; }
-        .goog-text-highlight { background-color: transparent !important; border: none !important; box-shadow: none !important; }
+        /* Voorkom dat de vertaalbalk de layout naar beneden verschuift */
+        body { top: 0px !important; position: static !important; }
+
+        /* Verberg alle varianten van Google's bovenbalk en iframes */
+        iframe.skiptranslate,
+        .goog-te-banner-frame,
+        .goog-te-banner-frame.skiptranslate,
+        .VIpgJd-ZVi9I-OR9ErZ-OEVmcd { 
+            display: none !important; 
+            visibility: hidden !important; 
+        }
+
+        /* Verberg hover pop-ups, tekstballonnen en markeringen */
+        #goog-gt-tt,
+        .goog-te-balloon-frame { 
+            display: none !important; 
+        }
+
+        .goog-text-highlight { 
+            background-color: transparent !important; 
+            box-shadow: none !important; 
+            border: none !important; 
+        }
+
+        #google_translate_element { 
+            display: none !important; 
+        }
 
         body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #fff; margin: 0; padding: 40px 20px; }
         .container { width: 100%; max-width: 700px; margin: 0 auto; background-color: #2d2d2d; padding: 30px; box-sizing: border-box; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
@@ -163,12 +186,47 @@ HTML_TEMPLATE = """
         .leaf-folder:hover { color: #fff; }
         .main-root-folder { margin-left: 0; margin-bottom: 15px; border-bottom: 1px solid #666; padding-bottom: 15px; }
         
-        .top-buttons { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .btn-coffee, .btn-discord { display: inline-block; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); text-decoration: none; cursor: pointer; border: none; }
+        .top-buttons { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .btn-coffee, .btn-discord, .lang-btn { display: inline-block; padding: 8px 16px; font-weight: bold; border-radius: 5px; transition: 0.3s; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); text-decoration: none; cursor: pointer; border: none; }
         .btn-coffee { background-color: #FFDD00; color: #222; }
         .btn-coffee:hover { background-color: #ffea00; transform: translateY(-2px); }
         .btn-discord { background-color: #5865F2; color: #fff; }
         .btn-discord:hover { background-color: #4752c4; transform: translateY(-2px); }
+
+        /* Vertaal Menu Dropdown - Naadloos aangesloten met hover-brug */
+        .lang-menu { position: relative; display: inline-block; cursor: pointer; }
+        .lang-btn { background: #333; color: #fff; font-size: 16px; padding: 7px 12px; }
+        .lang-btn:hover { background: #444; transform: translateY(-2px); }
+        
+        .lang-dropdown { 
+            display: none; 
+            position: absolute; 
+            right: 0; 
+            top: 100%; 
+            margin-top: 0px; 
+            background: #2d2d2d; 
+            min-width: 180px; 
+            max-height: 350px; 
+            overflow-y: auto; 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.7); 
+            z-index: 100; 
+            border-radius: 8px; 
+            border: 1px solid #444; 
+        }
+        
+        /* Onzichtbare brug boven de dropdown om wegvallen te voorkomen */
+        .lang-dropdown::before {
+            content: "";
+            position: absolute;
+            top: -10px;
+            left: 0;
+            width: 100%;
+            height: 10px;
+        }
+
+        .lang-menu:hover .lang-dropdown { display: block; }
+        .lang-dropdown a { color: #fff; padding: 10px 15px; text-decoration: none; display: block; font-size: 13px; transition: background 0.2s; font-weight: normal; text-align: left; }
+        .lang-dropdown a:hover { background: #4CAF50; color: white; }
 
         /* MODAL CSS */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); }
@@ -190,8 +248,12 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div id="google_translate_element"></div>
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({pageLanguage: 'nl', autoDisplay: false}, 'google_translate_element');
+        }
+    </script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-    <script>function googleTranslateElementInit() { new google.translate.TranslateElement({pageLanguage: 'nl', autoDisplay: false}, 'google_translate_element'); }</script>
 
     <!-- Support Modal -->
     <div id="supportModal" class="modal">
@@ -211,6 +273,11 @@ HTML_TEMPLATE = """
         <div class="top-buttons">
             <button onclick="openSupportModal()" class="btn-discord">💬 Support & Contact</button>
             <a href="https://www.paypal.com/paypalme/PandaBoyNL" target="_blank" class="btn-coffee">☕ Buy Me a Coffee (PayPal)</a>
+            
+            <div class="lang-menu">
+                <button class="lang-btn" title="Kies taal / Change language">🌍</button>
+                <div class="lang-dropdown" id="lang-lijst"></div>
+            </div>
         </div>
 
         <div class="status-box" id="status_box">
@@ -266,7 +333,7 @@ HTML_TEMPLATE = """
                 {% for ac in acodecs %}<option value="{{ ac }}" {% if ac == 'copy' %}selected{% endif %}>{{ ac }}</option>{% endfor %}
             </select>
 
-            <!-- REPARATIE OPTIE TOEGEVOEGD -->
+            <!-- REPARATIE OPTIE -->
             <label class="checkbox-label">
                 <input type="checkbox" name="repair_mode" value="yes"> 
                 🛠️ <strong>Repareer beschadigde bestanden / Negeer stream-fouten (Corrupte index/headers herstellen)</strong>
@@ -281,6 +348,58 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
+        // --- TALEN MENU VULLEN & SLIMME STATUS VERTALING ---
+        const talen = { 
+            "nl": "🇳🇱 Nederlands", "en": "🇺🇸 English", "de": "🇩🇪 Deutsch", 
+            "fr": "🇫🇷 Français", "es": "🇪🇸 Español", "it": "🇮🇹 Italiano", 
+            "pt": "🇵🇹 Português", "pl": "🇵🇱 Polski", "ru": "🇷🇺 Русский", 
+            "tr": "🇹🇷 Türkçe", "ar": "🇸🇦 العربية", "zh-CN": "🇨🇳 中文", 
+            "ja": "🇯🇵 日本語", "ko": "🇰🇷 한국어", "hi": "🇮🇳 हिन्दी" 
+        };
+
+        function getCurrentLang() {
+            let match = document.cookie.match(/googtrans=\/nl\/([a-zA-Z\-]+)/);
+            return match ? match[1] : 'nl';
+        }
+
+        function translateStatusText(text) {
+            let lang = getCurrentLang();
+            if (lang === 'nl') return text;
+
+            if (lang === 'en') {
+                if (text.includes("Klaar voor een nieuwe taak")) return "Ready for a new task. Select your folders and click Start.";
+                if (text.includes("Conversie wordt voorbereid") || text.includes("Taak wordt voorbereid")) return "Preparing conversion...";
+                if (text.startsWith("Aan het converteren/repareren in:")) {
+                    let folder = text.replace("Aan het converteren/repareren in:", "").trim();
+                    return "Converting/repairing in: " + folder;
+                }
+                if (text === "Verplaatsen naar mediamap...") return "Moving to media folder...";
+                if (text.includes("Klaar! Alle geselecteerde mappen zijn verwerkt")) return "Done! All selected folders have been processed.";
+                if (text.includes("Geen (nieuwe) video's gevonden")) return "Done! No (new) videos found to convert.";
+                if (text.startsWith("FOUT:")) return text.replace("FOUT:", "ERROR:");
+                if (text.startsWith("Systeemfout")) return text.replace("Systeemfout opgetreden:", "System error occurred:");
+            }
+            return text;
+        }
+
+        function laadTalenMenu() {
+            const lijst = document.getElementById('lang-lijst');
+            if (!lijst) return;
+            lijst.innerHTML = '';
+            for (const [code, naam] of Object.entries(talen)) {
+                const a = document.createElement('a');
+                a.href = "#";
+                a.innerText = naam;
+                a.onclick = (e) => {
+                    e.preventDefault();
+                    document.cookie = `googtrans=/nl/${code}; path=/`;
+                    window.location.reload();
+                };
+                lijst.appendChild(a);
+            }
+        }
+        laadTalenMenu();
+
         // Modal Functies
         function openSupportModal() {
             document.getElementById('supportModal').style.display = 'block';
@@ -338,14 +457,16 @@ HTML_TEMPLATE = """
             }
         }
 
-        // Conversie Status Update
+        // Conversie Status Update met automatische taalaanpassing
         setInterval(() => {
             fetch('/api/status')
                 .then(response => response.json())
                 .then(data => {
                     const statusText = document.getElementById('status_text');
                     const statusBox = document.getElementById('status_box');
-                    statusText.innerText = data.status_text;
+                    
+                    let vertaaldeStatus = translateStatusText(data.status_text);
+                    statusText.innerText = vertaaldeStatus;
                     
                     if (data.status_text.includes("FOUT") || data.status_text.includes("Fout")) {
                         statusText.style.color = "#ff5252";
@@ -373,10 +494,13 @@ HTML_TEMPLATE = """
                     });
 
                     const btn = document.getElementById('submit_btn');
+                    let lang = getCurrentLang();
                     if (data.is_running) {
-                        btn.disabled = true; btn.innerText = "⏳ Conversie & herstel bezig...";
+                        btn.disabled = true;
+                        btn.innerText = (lang === 'en') ? "⏳ Converting & repairing..." : "⏳ Conversie & herstel bezig...";
                     } else {
-                        btn.disabled = false; btn.innerText = "🚀 Start Conversie & Herstel";
+                        btn.disabled = false;
+                        btn.innerText = (lang === 'en') ? "🚀 Start Conversion & Repair" : "🚀 Start Conversie & Herstel";
                     }
                 });
         }, 1000);
@@ -416,6 +540,9 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url, repair_mo
         return
         
     processed_any = False
+    
+    # NIEUW: Definieer de toegestane video-extensies
+    VALID_VIDEO_EXT = {'mkv', 'mp4', 'avi', 'mov', 'webm', 'ts', 'wmv', 'flv', 'm4v', 'mpg', 'mpeg', 'asf'}
 
     try:
         for search_path in search_paths:
@@ -424,7 +551,9 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url, repair_mo
             for root, dirs, files in os.walk(search_path):
                 for file in files:
                     ext = file.split('.')[-1].lower()
-                    if ext == 'tmp' or ext == final_ext: continue 
+                    
+                    # AANGEPAST: Sla tmp-bestanden, reeds geconverteerde bestanden én niet-videobestanden over
+                    if ext == 'tmp' or ext == final_ext or ext not in VALID_VIDEO_EXT: continue 
                         
                     source_path = os.path.join(root, file)
                     filename_no_ext = '.'.join(file.split('.')[:-1])
@@ -437,7 +566,6 @@ def converter_job(folders, target_format, vcodec, acodec, webhook_url, repair_mo
                     STATE["status_text"] = f"Aan het converteren/repareren in: {os.path.basename(root)}"
                     STATE["current_file"] = file
                     
-                    # FFmpeg command met optionele reparatievlaggen
                     cmd = ['ffmpeg', '-y']
                     if repair_mode:
                         cmd.extend(['-err_detect', 'ignore_err', '-fflags', '+genpts'])
